@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BA6Y — Gamer Portal</title>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Share+Tech+Mono&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --rs-panel:#1c0f06;--rs-border-out:#5a3010;--rs-border-in:#8b5a2b;
+  --rs-border-hi:#c8902a;--rs-gold:#e8c84a;--rs-orange:#ff981f;--rs-tan:#c8a96e;
+  --rs-red:#9b1111;--rs-text:#d4b483;--rs-dim:rgba(200,160,70,0.45);
+  --steam-blue:#66c0f4;--steam-dim:rgba(100,160,200,0.55);
+  --poke-border:#3a3a5c;--poke-accent:#6c63ff;--poke-yellow:#f4d03f;
+  --cy:#00fff7;--cy2:#ff003c;--cy3:#b200ff;--cy4:#ffea00;
+}
+
+/* ── HEX CANVAS ── */
+#hex-bg{position:fixed;inset:0;z-index:0;pointer-events:none;}
+#hex-canvas{display:block;width:100%;height:100%;}
+#hex-cursor{position:fixed;width:8px;height:8px;background:var(--cy);border-radius:50%;pointer-events:none;transform:translate(-50%,-50%);z-index:9999;mix-blend-mode:screen;box-shadow:0 0 8px var(--cy);}
+
+body{
+  background:#000;
+  color:var(--rs-text);
+  font-family:'Share Tech Mono',monospace;
+  min-height:100vh;
+  overflow-x:hidden;
+  cursor:none;
+}
+
+/* scanlines */
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:9998;background:repeating-linear-gradient(0deg,rgba(0,0,0,0.03) 0px,rgba(0,0,0,0.03) 1px,transparent 1px,transparent 3px);}
+
+/* ── NAV ── */
+nav{
+  position:sticky;top:0;z-index:200;
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:0 24px;
+  background:rgba(0,0,4,0.92);
+  border-bottom:1px solid rgba(0,255,247,0.15);
+  box-shadow:0 0 40px rgba(0,0,0,0.9),0 1px 0 rgba(0,255,247,0.06);
+  min-height:62px;flex-wrap:wrap;
+  backdrop-filter:blur(12px);
+}
+.logo-block{display:flex;flex-direction:column;justify-content:center;gap:4px;line-height:1;}
+.logo-name{font-family:'Cinzel',serif;font-size:21px;font-weight:900;color:var(--cy);text-shadow:0 0 20px rgba(0,255,247,0.6),2px 2px 0 #001a1a;letter-spacing:3px;}
+.logo-stats{display:flex;gap:10px;}
+.logo-stat{font-size:9px;color:rgba(0,255,247,0.5);letter-spacing:1px;display:flex;align-items:center;gap:4px;}
+.logo-stat .dot{width:5px;height:5px;border-radius:50%;background:var(--cy);animation:pdot 2s ease-in-out infinite;box-shadow:0 0 4px var(--cy);}
+.logo-stat.dim{color:rgba(200,160,80,0.5);}
+@keyframes pdot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.2;transform:scale(.5);}}
+
+.nav-tabs{display:flex;list-style:none;gap:0;}
+.nav-tabs li a{display:block;padding:20px 14px;font-size:9px;letter-spacing:2px;color:rgba(0,255,247,0.25);text-decoration:none;border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;}
+.nav-tabs li a:hover,.nav-tabs li a.active{color:var(--cy);border-bottom-color:var(--cy);text-shadow:0 0 8px rgba(0,255,247,0.5);}
+.nav-tabs li a.t-rs:hover,.nav-tabs li a.t-rs.active{color:var(--rs-gold);border-bottom-color:var(--rs-orange);}
+.nav-tabs li a.t-steam:hover,.nav-tabs li a.t-steam.active{color:var(--steam-blue);border-bottom-color:var(--steam-blue);}
+.nav-tabs li a.t-poke:hover,.nav-tabs li a.t-poke.active{color:#a09af8;border-bottom-color:#6c63ff;}
+.nav-tabs li a.t-music:hover,.nav-tabs li a.t-music.active{color:#1db954;border-bottom-color:#1db954;}
+.live-badge{font-size:8px;letter-spacing:1px;padding:5px 12px;background:rgba(255,0,60,0.1);border:1px solid rgba(255,0,60,0.35);color:#ff4466;animation:blnk 1.6s step-end infinite;white-space:nowrap;}
+@keyframes blnk{50%{opacity:.2;}}
+
+/* ── LAYOUT ── */
+.section{display:none;}.section.active{display:block;}
+.page{position:relative;z-index:10;max-width:1140px;margin:0 auto;padding:28px 24px 60px;}
+.sec-head{display:flex;align-items:center;gap:14px;margin-bottom:22px;}
+.sec-head::before,.sec-head::after{content:'';flex:1;height:1px;background:linear-gradient(90deg,transparent,rgba(0,255,247,0.25),transparent);}
+.sec-label{font-family:'Cinzel',serif;font-size:11px;font-weight:700;color:var(--cy);letter-spacing:3px;white-space:nowrap;padding:0 6px;text-shadow:0 0 12px rgba(0,255,247,0.4);}
+
+/* glass panels — all tabs see-through */
+.glass-panel{
+  background:rgba(2,4,12,0.72);
+  border:1px solid rgba(0,255,247,0.12);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+}
+
+/* ── HOME ── */
+.hero{display:grid;grid-template-columns:1fr 1.15fr;gap:22px;align-items:start;}
+.pixel-name{font-family:'Cinzel',serif;font-size:40px;font-weight:900;color:var(--cy);text-shadow:0 0 30px rgba(0,255,247,0.5),3px 3px 0 #001a1a;line-height:1.1;margin-bottom:8px;}
+.hero-tag{font-size:9px;color:rgba(0,255,247,0.35);letter-spacing:3px;margin-bottom:18px;}
+.bio-box{background:rgba(0,255,247,0.03);border:1px solid rgba(0,255,247,0.1);border-left:3px solid var(--cy);padding:14px 16px;margin-bottom:14px;font-size:11px;line-height:1.9;color:rgba(180,240,230,0.8);font-style:italic;}
+.play-style{background:rgba(255,0,60,0.07);border:1px solid rgba(255,0,60,0.25);border-left:3px solid var(--cy2);padding:9px 14px;margin-bottom:14px;font-size:9px;color:rgba(255,80,100,0.85);letter-spacing:2px;}
+.platform-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.plat-tag{font-size:9px;letter-spacing:1px;padding:5px 12px;border:1px solid rgba(0,255,247,0.18);color:rgba(0,255,247,0.5);background:rgba(0,255,247,0.03);transition:all .2s;cursor:default;}
+.plat-tag:hover{border-color:var(--cy);color:var(--cy);box-shadow:0 0 12px rgba(0,255,247,0.12);}
+.switch-box{background:rgba(0,0,60,0.35);border:1px solid rgba(80,80,200,0.25);padding:9px 14px;font-size:9px;color:rgba(150,150,255,0.7);letter-spacing:1px;}
+.switch-box span{color:#aaaaff;}
+
+/* ── TWITCH ── */
+.twitch-panel{background:rgba(4,2,10,0.78);border:1px solid rgba(145,71,255,0.3);overflow:hidden;backdrop-filter:blur(10px);}
+.twitch-header{background:rgba(12,4,22,0.85);border-bottom:1px solid rgba(145,71,255,0.2);padding:9px 14px;display:flex;align-items:center;gap:10px;}
+.twitch-title{font-family:'Cinzel',serif;font-size:11px;font-weight:700;color:#9147ff;letter-spacing:2px;}
+.twitch-user{font-size:9px;color:rgba(145,71,255,0.38);}
+.twitch-live-lbl{font-size:8px;color:rgba(145,71,255,0.45);letter-spacing:1px;margin-left:auto;}
+.twitch-embed-wrap{position:relative;padding-bottom:56.25%;height:0;overflow:hidden;}
+.twitch-embed-wrap iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none;}
+.twitch-footer{padding:9px 14px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:rgba(145,71,255,0.28);border-top:1px solid rgba(145,71,255,0.1);}
+.twitch-footer a{color:rgba(145,71,255,0.55);text-decoration:none;transition:color .2s;}
+.twitch-footer a:hover{color:#9147ff;}
+
+/* ── OSRS ── */
+.osrs-layout{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start;}
+.osrs-panel{background:rgba(8,4,0,0.78);border:2px solid rgba(90,48,16,0.55);box-shadow:inset 0 0 0 1px rgba(139,90,43,0.15);overflow:hidden;backdrop-filter:blur(10px);}
+.osrs-header{background:rgba(16,6,0,0.85);border-bottom:1px solid rgba(90,48,16,0.45);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;}
+.osrs-title{font-family:'Cinzel',serif;font-size:11px;font-weight:700;color:var(--rs-gold);letter-spacing:2px;}
+.osrs-live-dot{font-size:8px;color:#ff6666;letter-spacing:1px;animation:blnk 1.6s step-end infinite;}
+.osrs-body{padding:14px;}
+.char-area{display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;}
+.char-name{font-family:'Cinzel',serif;font-size:14px;font-weight:700;color:var(--rs-gold);margin-bottom:4px;}
+.char-sub{font-size:9px;color:var(--rs-dim);margin-bottom:3px;}
+.char-badge{display:inline-block;font-size:8px;color:var(--rs-orange);border:1px solid rgba(255,152,31,0.3);padding:2px 8px;letter-spacing:1px;margin-top:4px;}
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;}
+.stat-cell{background:rgba(8,4,0,0.7);border:1px solid rgba(90,48,16,0.4);padding:5px 4px;text-align:center;cursor:default;transition:background .15s;}
+.stat-cell:hover{background:rgba(20,10,0,0.8);}
+.stat-icon{font-size:12px;display:block;line-height:1;}
+.stat-level{font-size:12px;color:var(--rs-gold);font-weight:bold;display:block;line-height:1.2;}
+.stat-name{font-size:6.5px;color:rgba(170,120,30,0.55);display:block;}
+.osrs-xp-bar{width:100%;height:5px;background:rgba(90,48,16,0.25);margin-top:10px;overflow:hidden;}
+.osrs-xp-fill{height:100%;width:0%;background:linear-gradient(90deg,var(--rs-orange),var(--rs-gold));transition:width 1.2s ease;}
+.osrs-footer-row{margin-top:10px;padding-top:10px;border-top:1px solid rgba(90,48,16,0.35);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;font-size:9px;color:var(--rs-dim);}
+.osrs-footer-row a{color:var(--rs-dim);text-decoration:none;transition:color .2s;}
+.osrs-footer-row a:hover{color:var(--rs-gold);}
+.osrs-loading{text-align:center;padding:24px 14px;font-size:9px;color:rgba(200,160,40,0.45);animation:lpulse 1.2s ease-in-out infinite;line-height:2;}
+@keyframes lpulse{0%,100%{opacity:1;}50%{opacity:.15;}}
+
+/* ── FASHIONSCAPE ── */
+.fashion-panel{background:rgba(8,4,0,0.78);border:2px solid rgba(90,48,16,0.55);box-shadow:inset 0 0 0 1px rgba(139,90,43,0.15);overflow:hidden;backdrop-filter:blur(10px);}
+.fashion-header{background:rgba(16,6,0,0.85);border-bottom:1px solid rgba(90,48,16,0.45);padding:8px 14px;display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.fashion-title{font-family:'Cinzel',serif;font-size:11px;font-weight:700;color:var(--rs-gold);letter-spacing:2px;}
+.fashion-sub{font-size:8px;color:var(--rs-dim);letter-spacing:1px;}
+.fashion-embed{width:100%;height:600px;border:none;display:block;background:rgba(8,4,0,0.5);}
+.fashion-fallback{padding:28px 20px;text-align:center;font-size:10px;color:var(--rs-dim);line-height:2;}
+.fashion-fallback a{display:inline-block;margin-top:12px;color:var(--rs-gold);text-decoration:none;border:1px solid rgba(232,200,74,0.35);padding:8px 20px;font-size:9px;letter-spacing:1px;transition:all .2s;}
+.fashion-fallback a:hover{background:rgba(232,200,74,0.07);}
+.fashion-toolbar{display:flex;align-items:center;gap:8px;padding:8px 14px;background:rgba(6,3,0,0.7);border-top:1px solid rgba(90,48,16,0.35);}
+.fashion-toolbar-btn{font-size:8px;letter-spacing:1px;padding:5px 12px;background:rgba(15,8,0,0.7);border:1px solid rgba(200,144,42,0.25);color:var(--rs-tan);cursor:pointer;transition:all .2s;font-family:'Share Tech Mono',monospace;text-decoration:none;display:inline-block;}
+.fashion-toolbar-btn:hover{border-color:var(--rs-gold);color:var(--rs-gold);background:rgba(232,200,74,0.05);}
+.fashion-toolbar-label{font-size:8px;color:var(--rs-dim);letter-spacing:1px;margin-left:auto;}
+
+/* ── STEAM ── */
+.steam-banner{height:140px;overflow:hidden;position:relative;}
+.steam-banner-inner{width:100%;height:100%;background:rgba(5,12,22,0.85);display:flex;align-items:center;justify-content:center;border-bottom:1px solid rgba(0,255,247,0.06);}
+.steam-banner-label{font-family:'Cinzel',serif;font-size:11px;color:rgba(0,255,247,0.06);letter-spacing:8px;}
+.steam-banner-overlay{position:absolute;inset:0;background:linear-gradient(0deg,rgba(0,2,8,0.95) 0%,transparent 60%);}
+.steam-profile-row{display:flex;gap:20px;padding:0 24px;margin-top:-48px;position:relative;z-index:2;align-items:flex-end;margin-bottom:18px;flex-wrap:wrap;}
+.steam-avatar-wrap{position:relative;flex-shrink:0;}
+.steam-avatar{width:84px;height:84px;border:2px solid rgba(0,255,247,0.35);box-shadow:0 0 18px rgba(0,255,247,0.12),0 4px 20px rgba(0,0,0,0.8);background:rgba(0,10,18,0.9);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:28px;font-weight:900;color:var(--cy);}
+.steam-online-dot{position:absolute;bottom:4px;right:4px;width:12px;height:12px;border-radius:50%;background:var(--cy);border:2px solid #000;box-shadow:0 0 8px var(--cy);}
+.steam-nameblock{padding-bottom:8px;flex:1;}
+.steam-displayname{font-size:22px;color:var(--cy);font-family:'Cinzel',serif;font-weight:700;letter-spacing:1px;line-height:1.1;margin-bottom:4px;text-shadow:0 0 18px rgba(0,255,247,0.35);}
+.steam-aka{font-size:9px;color:rgba(0,255,247,0.28);letter-spacing:1px;margin-bottom:6px;}
+.steam-status-online{display:inline-flex;align-items:center;gap:6px;font-size:10px;color:var(--cy);}
+.steam-status-online::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--cy);display:inline-block;box-shadow:0 0 6px var(--cy);}
+.steam-twitch-link{font-size:9px;color:rgba(145,71,255,0.6);text-decoration:none;margin-left:14px;letter-spacing:1px;transition:color .2s;}
+.steam-twitch-link:hover{color:#9147ff;}
+.steam-level-badge{align-self:flex-end;padding-bottom:10px;display:flex;flex-direction:column;align-items:center;gap:2px;}
+.steam-level-num{font-size:24px;font-weight:bold;color:var(--cy);font-family:'Cinzel',serif;background:rgba(0,255,247,0.05);padding:4px 14px;border:1px solid rgba(0,255,247,0.22);box-shadow:0 0 12px rgba(0,255,247,0.08);}
+.steam-level-label{font-size:8px;color:rgba(0,255,247,0.28);letter-spacing:1px;}
+.steam-featured-badge{display:flex;align-items:center;gap:10px;background:rgba(0,255,247,0.02);border:1px solid rgba(0,255,247,0.08);padding:8px 12px;margin-bottom:16px;}
+.steam-badge-icon{width:40px;height:40px;object-fit:contain;}
+.steam-badge-name{font-size:10px;color:rgba(200,240,238,0.75);margin-bottom:2px;}
+.steam-badge-xp{font-size:8px;color:rgba(0,255,247,0.28);}
+.steam-stats-bar{display:flex;gap:0;border:1px solid rgba(0,255,247,0.1);margin-bottom:20px;overflow:hidden;}
+.steam-stat-block{flex:1;padding:12px 8px;text-align:center;border-right:1px solid rgba(0,255,247,0.07);background:rgba(0,255,247,0.01);transition:background .2s;cursor:default;}
+.steam-stat-block:last-child{border-right:none;}
+.steam-stat-block:hover{background:rgba(0,255,247,0.04);}
+.steam-stat-num{font-size:16px;color:var(--cy);display:block;font-family:'Cinzel',serif;font-weight:700;}
+.steam-stat-lbl{font-size:7.5px;color:rgba(0,255,247,0.28);letter-spacing:1px;}
+.steam-columns{display:grid;grid-template-columns:1fr 320px;gap:20px;align-items:start;}
+.steam-box{background:rgba(0,4,10,0.72);border:1px solid rgba(0,255,247,0.09);margin-bottom:16px;overflow:hidden;backdrop-filter:blur(8px);}
+.steam-box-head{background:rgba(0,255,247,0.03);border-bottom:1px solid rgba(0,255,247,0.07);padding:8px 14px;font-size:9px;color:rgba(0,255,247,0.4);letter-spacing:2px;}
+.steam-box-body{padding:14px;}
+.steam-game-row{display:flex;gap:12px;align-items:flex-start;padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(0,255,247,0.05);}
+.steam-game-row:last-child{border-bottom:none;padding-bottom:0;margin-bottom:0;}
+.steam-game-cap{width:184px;height:69px;flex-shrink:0;object-fit:cover;display:block;border:1px solid rgba(0,255,247,0.1);}
+.steam-game-cap-ph{width:184px;height:69px;flex-shrink:0;background:rgba(0,15,20,0.7);border:1px solid rgba(0,255,247,0.08);display:flex;align-items:center;justify-content:center;font-size:8px;color:rgba(0,255,247,0.18);}
+.steam-game-name{font-size:12px;color:var(--cy);margin-bottom:4px;text-decoration:none;transition:color .2s;display:block;}
+.steam-game-name:hover{color:#fff;}
+.steam-game-hrs{font-size:10px;color:rgba(200,240,238,0.65);margin-bottom:3px;}
+.steam-game-last{font-size:9px;color:rgba(0,255,247,0.28);}
+.steam-ach-row{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px;}
+.steam-ach-icon{width:30px;height:30px;object-fit:cover;opacity:.55;transition:opacity .2s;cursor:pointer;}
+.steam-ach-icon:hover{opacity:1;}
+.steam-feat-games{display:flex;flex-direction:column;gap:8px;}
+.steam-feat-game{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid rgba(0,255,247,0.05);}
+.steam-feat-game:last-child{border-bottom:none;}
+.steam-feat-cap{width:92px;height:35px;object-fit:cover;flex-shrink:0;border:1px solid rgba(0,255,247,0.08);}
+.steam-feat-name{font-size:10px;color:var(--cy);text-decoration:none;transition:color .2s;}
+.steam-feat-name:hover{color:#fff;}
+.steam-shots{display:grid;grid-template-columns:1fr 1fr;gap:5px;}
+.steam-shot{aspect-ratio:16/9;object-fit:cover;width:100%;border:1px solid rgba(0,255,247,0.08);transition:opacity .2s;cursor:pointer;}
+.steam-shot:hover{opacity:.7;}
+.steam-badges-row{display:flex;flex-wrap:wrap;gap:10px;}
+.steam-badge-card{display:flex;flex-direction:column;align-items:center;gap:4px;width:54px;cursor:default;}
+.steam-badge-card img{width:44px;height:44px;object-fit:contain;}
+.steam-badge-card span{font-size:7px;color:rgba(0,255,247,0.28);text-align:center;}
+.steam-comment{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid rgba(0,255,247,0.05);}
+.steam-comment:last-child{border-bottom:none;}
+.steam-commenter-av{width:32px;height:32px;flex-shrink:0;background:rgba(0,20,25,0.8);border:1px solid rgba(0,255,247,0.18);display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--cy);}
+.steam-commenter-name{font-size:10px;color:var(--cy);text-decoration:none;display:block;margin-bottom:3px;}
+.steam-commenter-name:hover{color:#fff;}
+.steam-comment-text{font-size:10px;color:rgba(200,240,238,0.65);line-height:1.5;}
+.steam-comment-date{font-size:8px;color:rgba(0,255,247,0.22);margin-top:3px;}
+.steam-year-row{display:flex;gap:8px;flex-wrap:wrap;}
+.steam-year-chip{font-size:8px;padding:4px 10px;background:rgba(0,255,247,0.02);border:1px solid rgba(0,255,247,0.09);color:rgba(0,255,247,0.38);}
+.steam-profile-link{display:inline-block;margin-top:12px;font-size:9px;color:var(--cy);text-decoration:none;border:1px solid rgba(0,255,247,0.25);padding:8px 18px;transition:all .2s;letter-spacing:1px;}
+.steam-profile-link:hover{background:rgba(0,255,247,0.05);box-shadow:0 0 14px rgba(0,255,247,0.08);}
+
+/* ── SPOTIFY ── */
+.spotify-panel{background:rgba(0,8,2,0.78);border:1px solid rgba(30,215,96,0.18);backdrop-filter:blur(10px);}
+.spotify-header{background:rgba(0,12,4,0.85);border-bottom:1px solid rgba(30,215,96,0.14);padding:10px 16px;display:flex;align-items:center;gap:10px;}
+.sp-title{font-family:'Cinzel',serif;font-size:11px;font-weight:700;color:rgba(80,215,110,0.8);letter-spacing:2px;}
+.sp-user{font-size:9px;color:rgba(30,215,96,0.32);margin-left:auto;}
+.sp-body{padding:16px;}
+.sp-note{font-size:9px;color:rgba(80,180,100,0.45);margin-bottom:12px;line-height:1.8;}
+
+/* ── POKEMON ── */
+.poke-hero{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;margin-bottom:28px;padding:20px 22px;background:rgba(4,4,18,0.78);border:1px solid rgba(108,99,255,0.25);backdrop-filter:blur(10px);}
+.poke-main-title{font-family:'Press Start 2P',monospace;font-size:16px;color:var(--poke-yellow);text-shadow:3px 3px 0 #2a2000,0 0 22px rgba(244,208,63,0.25);line-height:1.4;margin-bottom:6px;}
+.poke-subtitle{font-size:9px;color:rgba(160,154,248,0.55);letter-spacing:2px;}
+.poke-team-link{display:inline-block;font-family:'Press Start 2P',monospace;font-size:7px;color:#fff;text-decoration:none;background:linear-gradient(135deg,#6c63ff,#4834d4);border:2px solid #9b94ff;padding:10px 16px;letter-spacing:1px;transition:all .2s;box-shadow:0 4px 0 #2a20a0,0 0 18px rgba(108,99,255,0.25);}
+.poke-team-link:hover{transform:translateY(-2px);box-shadow:0 6px 0 #2a20a0,0 0 28px rgba(108,99,255,0.4);}
+.poke-team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:28px;}
+.poke-card{background:rgba(4,4,18,0.78);border:1px solid rgba(58,58,92,0.6);overflow:hidden;position:relative;transition:all .25s;cursor:default;backdrop-filter:blur(8px);}
+.poke-card:hover{border-color:rgba(108,99,255,0.55);box-shadow:0 0 22px rgba(108,99,255,0.12);transform:translateY(-2px);}
+.poke-card-num{position:absolute;top:8px;right:10px;font-size:8px;color:rgba(255,255,255,0.06);font-family:'Press Start 2P',monospace;}
+.poke-card-inner{padding:14px;}
+.poke-sprite-wrap{text-align:center;margin-bottom:8px;height:80px;display:flex;align-items:center;justify-content:center;}
+.poke-sprite{image-rendering:pixelated;width:80px;height:80px;object-fit:contain;filter:drop-shadow(0 2px 8px rgba(108,99,255,0.2));transition:transform .3s;}
+.poke-card:hover .poke-sprite{transform:scale(1.1) translateY(-3px);}
+.poke-load-box{width:64px;height:64px;background:rgba(108,99,255,0.06);border:1px solid rgba(108,99,255,0.12);animation:lpulse 1s ease-in-out infinite;}
+.poke-name{font-family:'Press Start 2P',monospace;font-size:9px;color:#fff;margin-bottom:6px;text-transform:capitalize;}
+.type-badge{display:inline-block;font-size:7.5px;letter-spacing:1px;padding:2px 7px;border-radius:2px;font-weight:bold;text-transform:uppercase;margin-right:3px;}
+.poke-types{margin-bottom:10px;}
+.poke-stats{display:flex;flex-direction:column;gap:3px;}
+.poke-stat-row{display:flex;align-items:center;gap:6px;}
+.poke-stat-name{font-size:7px;color:rgba(160,154,248,0.45);width:28px;text-align:right;flex-shrink:0;}
+.poke-stat-bar{flex:1;height:4px;background:rgba(255,255,255,0.05);overflow:hidden;}
+.poke-stat-fill{height:100%;transition:width 1s ease;}
+.poke-stat-val{font-size:7px;color:rgba(255,255,255,0.35);width:22px;text-align:right;flex-shrink:0;}
+.poke-search-panel{background:rgba(4,4,18,0.78);border:1px solid rgba(58,58,92,0.5);padding:18px 20px;margin-bottom:20px;backdrop-filter:blur(8px);}
+.poke-search-title{font-family:'Press Start 2P',monospace;font-size:8px;color:rgba(160,154,248,0.55);letter-spacing:1px;margin-bottom:12px;}
+.poke-search-row{display:flex;gap:8px;}
+.poke-search-input{flex:1;background:rgba(0,0,14,0.7);border:1px solid rgba(58,58,92,0.55);color:#fff;font-family:'Share Tech Mono',monospace;font-size:11px;padding:10px 14px;outline:none;transition:border-color .2s;}
+.poke-search-input:focus{border-color:var(--poke-accent);box-shadow:0 0 10px rgba(108,99,255,0.12);}
+.poke-search-input::placeholder{color:rgba(255,255,255,0.16);}
+.poke-search-btn{background:var(--poke-accent);border:none;color:#fff;font-family:'Press Start 2P',monospace;font-size:8px;padding:10px 16px;cursor:pointer;transition:background .2s;}
+.poke-search-btn:hover{background:#5a54e0;}
+.poke-search-result{margin-top:14px;display:none;}
+.poke-single-card{background:rgba(255,255,255,0.02);border:1px solid rgba(108,99,255,0.24);padding:16px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;}
+.poke-single-sprite{width:96px;height:96px;image-rendering:pixelated;object-fit:contain;}
+.poke-single-num{font-size:8px;color:rgba(255,255,255,0.2);font-family:'Press Start 2P',monospace;margin-top:4px;}
+.poke-single-right{flex:1;min-width:160px;}
+.poke-single-name{font-family:'Press Start 2P',monospace;font-size:12px;color:#fff;text-transform:capitalize;margin-bottom:8px;}
+.poke-single-stats{display:flex;flex-direction:column;gap:5px;}
+.poke-single-stat-row{display:flex;align-items:center;gap:8px;}
+.poke-single-stat-name{font-size:8px;color:rgba(160,154,248,0.48);width:50px;flex-shrink:0;}
+.poke-single-bar{flex:1;height:5px;background:rgba(255,255,255,0.04);overflow:hidden;}
+.poke-single-fill{height:100%;}
+.poke-single-val{font-size:8px;color:rgba(255,255,255,0.38);width:28px;text-align:right;}
+
+/* ── FOOTER ── */
+footer{border-top:1px solid rgba(0,255,247,0.1);background:rgba(0,0,4,0.94);padding:18px 28px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;position:relative;z-index:200;backdrop-filter:blur(14px);}
+.footer-sig{font-family:'Cinzel',serif;font-size:10px;font-weight:700;color:rgba(0,255,247,0.15);letter-spacing:3px;}
+.social-links{display:flex;gap:10px;}
+.soc-btn{font-size:8px;padding:7px 14px;text-decoration:none;border:1px solid;transition:all .2s;letter-spacing:1px;}
+.soc-twitch{color:#9147ff;border-color:rgba(145,71,255,0.35);}.soc-twitch:hover{background:rgba(145,71,255,0.08);}
+.soc-steam{color:var(--cy);border-color:rgba(0,255,247,0.28);}.soc-steam:hover{background:rgba(0,255,247,0.04);}
+.soc-rs{color:var(--rs-gold);border-color:rgba(232,200,74,0.35);}.soc-rs:hover{background:rgba(232,200,74,0.06);}
+.soc-poke{color:#a09af8;border-color:rgba(108,99,255,0.35);}.soc-poke:hover{background:rgba(108,99,255,0.07);}
+
+@media(max-width:820px){
+  .hero,.osrs-layout,.steam-columns{grid-template-columns:1fr;}
+  .poke-team-grid{grid-template-columns:repeat(2,1fr);}
+  .pixel-name{font-size:28px;}
+  nav{padding:0 10px;}
+  .page{padding:18px 14px 48px;}
+  .nav-tabs li a{padding:18px 9px;font-size:8px;letter-spacing:1px;}
+}
+@media(max-width:480px){
+  .poke-team-grid{grid-template-columns:1fr;}
+  .steam-game-cap{width:120px;height:45px;}
+}
+</style>
+</head>
+<body>
+
+<!-- HEX BG -->
+<div id="hex-bg"><canvas id="hex-canvas"></canvas></div>
+<div id="hex-cursor"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="logo-block">
+    <div class="logo-name">BA6Y</div>
+    <div class="logo-stats">
+      <span class="logo-stat"><span class="dot"></span>⚔ CB: <span id="nav-cb">…</span></span>
+      <span class="logo-stat dim">✦ LVL: <span id="nav-total">…</span></span>
+    </div>
+  </div>
+  <ul class="nav-tabs">
+    <li><a href="#" class="active"   onclick="showTab('home',this)">🏠 HOME</a></li>
+    <li><a href="#" class="t-rs"     onclick="showTab('osrs',this)">⚔ OSRS</a></li>
+    <li><a href="#" class="t-steam"  onclick="showTab('steam',this)">🎮 STEAM</a></li>
+    <li><a href="#" class="t-music"  onclick="showTab('music',this)">♪ MUSIC</a></li>
+    <li><a href="#" class="t-poke"   onclick="showTab('pokemon',this)">◈ POKÉMON</a></li>
+  </ul>
+  <div class="live-badge">◉ TWITCH.TV/BA6Y</div>
+</nav>
+
+<!-- HOME -->
+<div id="section-home" class="section active">
+<div class="page">
+  <div class="hero">
+    <div class="hero-left">
+      <p class="hero-tag">// GAMER — AGGRESSIVE PLAYSTYLE</p>
+      <div class="pixel-name">Ba6y</div>
+      <div class="bio-box">"I like playing every game super fast and aggressive because it's the most fun and visually pleasing."</div>
+      <div class="play-style">► PLAYSTYLE: FAST &amp; AGGRESSIVE — NO EXCEPTIONS</div>
+      <div class="platform-row">
+        <span class="plat-tag">SHOOTERS</span>
+        <span class="plat-tag">BATTLE ROYALE</span>
+        <span class="plat-tag">SURVIVAL</span>
+        <span class="plat-tag">RUNESCAPE</span>
+      </div>
+      <div class="switch-box">SWITCH FC: <span>SW-0862-8124-9709</span></div>
+    </div>
+    <div class="twitch-panel">
+      <div class="twitch-header">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#9147ff"><path d="M4.265 2L2 7.32v13.23h4.498V23l3.177-2.45h3.397L20.15 12V2H4.265zm14.2 9.308l-2.64 2.626h-3.18l-2.32 2.317v-2.317H7.08V3.7h11.385v7.608zM17.147 5.96h-1.55v4.542h1.55V5.96zm-4.266 0h-1.55v4.542h1.55V5.96z"/></svg>
+        <span class="twitch-title">TWITCH.TV/BA6Y</span>
+        <span class="twitch-user">ba6y</span>
+        <span class="twitch-live-lbl" id="twitch-lbl">● LOADING…</span>
+      </div>
+      <div class="twitch-embed-wrap">
+        <iframe id="twitch-iframe" src="" allowfullscreen scrolling="no" frameborder="0" allow="autoplay; fullscreen"></iframe>
+      </div>
+      <div class="twitch-footer">
+        <span>twitch.tv/ba6y</span>
+        <a href="https://www.twitch.tv/ba6y" target="_blank">OPEN ON TWITCH →</a>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- OSRS -->
+<div id="section-osrs" class="section">
+<div class="page">
+  <div class="sec-head"><div class="sec-label">⚔ OLDSCHOOL RUNESCAPE</div></div>
+  <div class="osrs-layout">
+    <div class="osrs-panel">
+      <div class="osrs-header">
+        <span class="osrs-title">HISCORES — ba6y</span>
+        <span class="osrs-live-dot">● LIVE</span>
+      </div>
+      <div class="osrs-body">
+        <div class="char-area">
+          <div style="width:64px;height:96px;flex-shrink:0;">
+            <svg viewBox="0 0 32 48" width="64" height="96" style="image-rendering:pixelated;" xmlns="http://www.w3.org/2000/svg">
+              <rect x="10" y="4"  width="12" height="10" fill="#f4c87a"/><rect x="9"  y="6"  width="2"  height="6"  fill="#f4c87a"/><rect x="21" y="6"  width="2"  height="6"  fill="#f4c87a"/>
+              <rect x="12" y="8"  width="2"  height="2"  fill="#333"/><rect x="18" y="8"  width="2"  height="2"  fill="#333"/>
+              <rect x="10" y="2"  width="12" height="4"  fill="#8b0000"/><rect x="8"  y="4"  width="16" height="3"  fill="#a00000"/>
+              <rect x="9"  y="14" width="14" height="14" fill="#8b0000"/><rect x="8"  y="15" width="16" height="11" fill="#700000"/><rect x="10" y="16" width="12" height="9"  fill="#8b0000"/>
+              <rect x="13" y="17" width="6"  height="1"  fill="#c0a030"/><rect x="13" y="19" width="6"  height="1"  fill="#c0a030"/>
+              <rect x="4"  y="15" width="5"  height="10" fill="#8b0000"/><rect x="23" y="15" width="5"  height="10" fill="#8b0000"/>
+              <rect x="3"  y="24" width="5"  height="4"  fill="#f4c87a"/><rect x="24" y="24" width="5"  height="4"  fill="#f4c87a"/>
+              <rect x="9"  y="28" width="6"  height="12" fill="#4a3000"/><rect x="17" y="28" width="6"  height="12" fill="#4a3000"/>
+              <rect x="9"  y="40" width="6"  height="4"  fill="#2a1800"/><rect x="17" y="40" width="6"  height="4"  fill="#2a1800"/>
+              <rect x="26" y="11" width="2"  height="18" fill="#aaaaaa"/><rect x="24" y="20" width="6"  height="2"  fill="#8b6914"/><rect x="26" y="9"  width="2"  height="4"  fill="#e8c84a"/>
+            </svg>
+          </div>
+          <div>
+            <div class="char-name">ba6y</div>
+            <div class="char-sub" id="combat-lv">Combat Lv: loading…</div>
+            <div class="char-sub" id="total-lv" style="color:var(--rs-dim);">Total: —</div>
+            <div class="char-badge">OLDSCHOOL RS</div>
+          </div>
+        </div>
+        <div id="osrs-loading" class="osrs-loading">▶ FETCHING HISCORES…<br><span style="font-size:8px;color:rgba(180,130,30,0.3);">Contacting Jagex servers…</span></div>
+        <div id="stat-grid" class="stat-grid" style="display:none;"></div>
+        <div class="osrs-xp-bar" id="xp-bar" style="display:none;"><div class="osrs-xp-fill" id="xp-fill"></div></div>
+        <div class="osrs-footer-row">
+          <span id="osrs-rank">Rank: —</span>
+          <span id="osrs-xp" style="color:var(--rs-orange);"></span>
+          <a href="https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1=ba6y" target="_blank">VIEW FULL →</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="fashion-panel" id="fashion-panel-wrap">
+      <div class="fashion-header">
+        <span class="fashion-title">✦ CHARACTER CREATOR</span>
+        <span class="fashion-sub">OSRS BLENDER FASHIONSCAPE</span>
+      </div>
+      <div id="fashion-container">
+        <iframe id="fashion-iframe" class="fashion-embed"
+          src="https://psyda.github.io/OSRS-Blender-CharacterCreator/"
+          title="OSRS Blender Character Creator"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-modals"
+          allow="fullscreen" loading="lazy"></iframe>
+        <div id="fashion-fallback" class="fashion-fallback" style="display:none;">
+          <div style="font-size:32px;margin-bottom:10px;">🧝</div>
+          <div style="color:var(--rs-gold);font-family:'Cinzel',serif;font-size:14px;margin-bottom:10px;">OSRS Blender Character Creator</div>
+          <div>Build and customise your OSRS character in 3D.<br>Opens in a new tab.</div>
+          <a href="https://psyda.github.io/OSRS-Blender-CharacterCreator/" target="_blank">OPEN CHARACTER CREATOR →</a>
+        </div>
+      </div>
+      <div class="fashion-toolbar">
+        <button class="fashion-toolbar-btn" onclick="reloadFashion()">↻ RELOAD</button>
+        <button class="fashion-toolbar-btn" id="expand-btn" onclick="toggleFashionSize()">⤢ EXPAND</button>
+        <a class="fashion-toolbar-btn" href="https://psyda.github.io/OSRS-Blender-CharacterCreator/" target="_blank" style="text-decoration:none;">↗ OPEN TAB</a>
+        <span class="fashion-toolbar-label">OSRS BLENDER CHARACTER CREATOR</span>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- STEAM -->
+<div id="section-steam" class="section">
+  <div class="steam-banner">
+    <div class="steam-banner-inner"><span class="steam-banner-label">STEAM COMMUNITY</span></div>
+    <div class="steam-banner-overlay"></div>
+  </div>
+  <div class="page" style="padding-top:0;">
+    <div class="steam-profile-row">
+      <div class="steam-avatar-wrap">
+        <div class="steam-avatar">B</div>
+        <div class="steam-online-dot"></div>
+      </div>
+      <div class="steam-nameblock">
+        <div class="steam-displayname">Ba6y</div>
+        <div class="steam-aka">Also known as: Milano</div>
+        <div>
+          <span class="steam-status-online">Currently Online</span>
+          <a href="https://www.twitch.tv/ba6y" target="_blank" class="steam-twitch-link">Twitch.tv/Ba6y ↗</a>
+        </div>
+      </div>
+      <div class="steam-level-badge">
+        <div class="steam-level-num">45</div>
+        <div class="steam-level-label">STEAM LEVEL</div>
+      </div>
+    </div>
+    <div class="steam-featured-badge">
+      <img class="steam-badge-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/1343370/767ac888fa14f175f0a7b43322ce3a9d7e54f8df.png" alt="Infernal Cape" onerror="this.style.display='none'">
+      <div><div class="steam-badge-name">Infernal Cape</div><div class="steam-badge-xp">500 XP · Old School RuneScape</div></div>
+      <div style="font-size:8px;color:rgba(0,255,247,0.18);letter-spacing:1px;margin-left:auto;">FEATURED BADGE</div>
+    </div>
+    <div class="steam-stats-bar">
+      <div class="steam-stat-block"><span class="steam-stat-num">201</span><span class="steam-stat-lbl">GAMES</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">459</span><span class="steam-stat-lbl">DLC</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">27</span><span class="steam-stat-lbl">BADGES</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">1,769</span><span class="steam-stat-lbl">ACHIEVEMENTS</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">40</span><span class="steam-stat-lbl">FRIENDS</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">88</span><span class="steam-stat-lbl">SCREENSHOTS</span></div>
+      <div class="steam-stat-block"><span class="steam-stat-num">3</span><span class="steam-stat-lbl">REVIEWS</span></div>
+    </div>
+    <div class="steam-columns">
+      <div class="steam-main">
+        <div class="steam-box">
+          <div class="steam-box-head">RECENT ACTIVITY — 8.2 HRS PAST 2 WEEKS</div>
+          <div class="steam-box-body">
+            <div class="steam-game-row">
+              <img class="steam-game-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/431960/capsule_184x69.jpg?t=1739211362" alt="Wallpaper Engine" onerror="this.style.opacity='.15'">
+              <div><a class="steam-game-name" href="https://store.steampowered.com/app/431960/" target="_blank">Wallpaper Engine</a><div class="steam-game-hrs">309 hrs on record</div><div class="steam-game-last">Last played Apr 8</div>
+              <div class="steam-ach-row"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/431960/893e157fe5efed6fb37e012e80079b2b07e902ef.jpg" alt="" onerror="this.style.display='none'"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/431960/b94c0f896de24c4bb8fc3a040f5e62a6df69d8d0.jpg" alt="" onerror="this.style.display='none'"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/431960/dafacb580ba40cf8ef509ff9861f3ade9057397f.jpg" alt="" onerror="this.style.display='none'"></div></div>
+            </div>
+            <div class="steam-game-row">
+              <img class="steam-game-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/2246340/970508d58e4f11f6f9ff3e2921b7eec558a50af8/capsule_184x69.jpg?t=1771382452" alt="Monster Hunter Wilds" onerror="this.style.opacity='.15'">
+              <div><a class="steam-game-name" href="https://store.steampowered.com/app/2246340/" target="_blank">Monster Hunter Wilds</a><div class="steam-game-hrs">99 hrs on record</div><div class="steam-game-last">Last played Apr 6</div>
+              <div class="steam-ach-row"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/2246340/bbf15074c8d8d6e21cab3ccbebb62fc43f33b50f.jpg" alt="" onerror="this.style.display='none'"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/2246340/b602528855b0e0537f2960b4a653f68a83df6fac.jpg" alt="" onerror="this.style.display='none'"></div></div>
+            </div>
+            <div class="steam-game-row">
+              <img class="steam-game-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1778820/capsule_184x69.jpg?t=1770678135" alt="TEKKEN 8" onerror="this.style.opacity='.15'">
+              <div><a class="steam-game-name" href="https://store.steampowered.com/app/1778820/" target="_blank">TEKKEN 8</a><div class="steam-game-hrs">181 hrs on record</div><div class="steam-game-last">Last played Mar 26</div>
+              <div class="steam-ach-row"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/1778820/b669285fa5b88ef598dee7c1eced4fb35f0e3ebb.jpg" alt="" onerror="this.style.display='none'"><img class="steam-ach-icon" src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/apps/1778820/d2328bb8b26b7eeb65f6d6d1c8ce1c5c1b460342.jpg" alt="" onerror="this.style.display='none'"></div></div>
+            </div>
+          </div>
+        </div>
+        <div class="steam-box">
+          <div class="steam-box-head">PROFILE COMMENTS</div>
+          <div class="steam-box-body">
+            <div class="steam-comment"><div class="steam-commenter-av">Y</div><div><a href="https://steamcommunity.com/id/Yarnsmol" target="_blank" class="steam-commenter-name">Yarns</a><div class="steam-comment-text">W profile</div><div class="steam-comment-date">Apr 19, 2022 @ 3:57pm</div></div></div>
+            <div class="steam-comment" style="margin-top:10px;"><div class="steam-commenter-av">D</div><div><a href="https://steamcommunity.com/profiles/76561198089979177" target="_blank" class="steam-commenter-name">Deelusional</a><div class="steam-comment-text">NICE PROFILE MAN!!!!</div><div class="steam-comment-date">Oct 24, 2020 @ 9:05pm</div></div></div>
+          </div>
+        </div>
+        <div class="steam-box">
+          <div class="steam-box-head">STEAM REPLAY 2024</div>
+          <div class="steam-box-body">
+            <div style="font-size:9px;color:rgba(0,255,247,0.32);margin-bottom:10px;">61 games · 1,171 sessions · 303 achievements · 26 new games</div>
+            <div class="steam-year-row"><span class="steam-year-chip">Monster Hunter Wilds 13%</span><span class="steam-year-chip">TEKKEN 8 12%</span><span class="steam-year-chip">Valheim 11%</span><span class="steam-year-chip">PUBG 11%</span><span class="steam-year-chip">Apex Legends 7%</span></div>
+            <a href="https://steamcommunity.com/id/bornsix/" target="_blank" class="steam-profile-link">VIEW FULL STEAM PROFILE →</a>
+          </div>
+        </div>
+      </div>
+      <div class="steam-sidebar">
+        <div class="steam-box">
+          <div class="steam-box-head">FEATURED GAMES</div>
+          <div class="steam-box-body">
+            <div class="steam-feat-games">
+              <div class="steam-feat-game"><img class="steam-feat-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1343370/capsule_184x69.jpg?t=1771935944" alt="OSRS" onerror="this.style.opacity='.15'"><a href="https://store.steampowered.com/app/1343370/" target="_blank" class="steam-feat-name">Old School RuneScape</a></div>
+              <div class="steam-feat-game"><img class="steam-feat-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1091500/590e0988a2fb79f44d3e31e41fd4949eb76abc41/capsule_184x69.jpg?t=1769690377" alt="CP2077" onerror="this.style.opacity='.15'"><a href="https://store.steampowered.com/app/1091500/" target="_blank" class="steam-feat-name">Cyberpunk 2077</a></div>
+              <div class="steam-feat-game"><img class="steam-feat-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/868270/capsule_184x69.jpg?t=1695833372" alt="Apex" onerror="this.style.opacity='.15'"><a href="https://store.steampowered.com/app/868270/" target="_blank" class="steam-feat-name">Apex Legends</a></div>
+              <div class="steam-feat-game"><img class="steam-feat-cap" src="https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/322780/capsule_184x69.jpg?t=1574697194" alt="The Forest" onerror="this.style.opacity='.15'"><a href="https://store.steampowered.com/app/322780/" target="_blank" class="steam-feat-name">The Forest</a></div>
+            </div>
+          </div>
+        </div>
+        <div class="steam-box">
+          <div class="steam-box-head">BADGES — 27 TOTAL</div>
+          <div class="steam-box-body">
+            <div class="steam-badges-row">
+              <div class="steam-badge-card"><img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/1343370/767ac888fa14f175f0a7b43322ce3a9d7e54f8df.png" alt="OSRS" onerror="this.style.opacity='.1'"><span>OSRS</span></div>
+              <div class="steam-badge-card"><img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/1091500/d18d37dd5de324d9e25a32ad06db4585761dfb4a.png" alt="CP77" onerror="this.style.opacity='.1'"><span>CP2077</span></div>
+              <div class="steam-badge-card"><img src="https://community.fastly.steamstatic.com/public/images/badges/02_years/steamyears8_80.png" alt="8yr" onerror="this.style.opacity='.1'"><span>8 YR</span></div>
+              <div class="steam-badge-card"><img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/431960/3ac817cd2904e822e0801ce9fe59a94551d4d4ca.png" alt="WPE" onerror="this.style.opacity='.1'"><span>WPE</span></div>
+              <div class="steam-badge-card"><img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/1072420/8b0ad0b83be6e7a9b6975d70f5e397cf1f2faee1.png" alt="TK8" onerror="this.style.opacity='.1'"><span>TK8</span></div>
+              <div class="steam-badge-card"><img src="https://cdn.fastly.steamstatic.com/steamcommunity/public/images/items/550/9c05f08e59bd520e6136a980e35f7065ec88f5da.png" alt="L4D2" onerror="this.style.opacity='.1'"><span>L4D2</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="steam-box">
+          <div class="steam-box-head">SCREENSHOTS</div>
+          <div class="steam-box-body">
+            <div class="steam-shots">
+              <img class="steam-shot" src="https://images.steamusercontent.com/ugc/1771571357468459820/80D87B859D54E65CFB6B30329D3FB1AEA0C8EC8A/?imw=506&imh=284&ima=fit&impolicy=Letterbox" alt="ss" onerror="this.style.opacity='.1'" onclick="window.open('https://steamcommunity.com/sharedfiles/filedetails/?id=2364355103','_blank')">
+              <img class="steam-shot" src="https://images.steamusercontent.com/ugc/2093669747572039919/13BA242A93DF86488B2E8579E1C3FD3DEFC5F01F/?imw=506&imh=284&ima=fit&impolicy=Letterbox" alt="ss" onerror="this.style.opacity='.1'" onclick="window.open('https://steamcommunity.com/sharedfiles/filedetails/?id=3056116983','_blank')">
+            </div>
+            <div style="margin-top:8px;font-size:8px;color:rgba(0,255,247,0.18);">+ 86 more screenshots</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- MUSIC -->
+<div id="section-music" class="section">
+<div class="page">
+  <div class="sec-head"><div class="sec-label" style="color:#1db954;text-shadow:0 0 12px rgba(30,215,96,0.35);">♪ MUSIC</div></div>
+  <div class="spotify-panel">
+    <div class="spotify-header">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="#1db954"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+      <span class="sp-title">SPOTIFY</span><span class="sp-user">mnxnegron</span>
+    </div>
+    <div class="sp-body">
+      <p class="sp-note">► Ba6y's Spotify — open in Spotify app or browser to follow &amp; listen to his playlists.</p>
+      <iframe src="https://open.spotify.com/embed/user/mnxnegron?utm_source=generator&theme=0" width="100%" height="380" frameborder="0" allowtransparency="true" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" loading="lazy" style="border:none;display:block;"></iframe>
+    </div>
+  </div>
+</div>
+</div>
+
+<!-- POKEMON -->
+<div id="section-pokemon" class="section">
+<div class="page">
+  <div class="sec-head"><div class="sec-label" style="color:#a09af8;text-shadow:0 0 12px rgba(160,154,248,0.35);">◈ POKÉMON</div></div>
+  <div class="poke-hero">
+    <div><div class="poke-main-title">BA6Y'S TEAM</div><div class="poke-subtitle">// FAST &amp; AGGRESSIVE — BUILT TO WIN</div></div>
+    <a href="https://econclass.github.io/PokeTeam/#/" target="_blank" class="poke-team-link">◈ BUILD YOUR TEAM →</a>
+  </div>
+  <div class="poke-team-grid" id="poke-team-grid"></div>
+  <div class="sec-head" style="margin-top:8px;"><div class="sec-label" style="color:rgba(160,154,248,0.55);font-size:9px;">POKÉDEX LOOKUP</div></div>
+  <div class="poke-search-panel">
+    <div class="poke-search-title">▶ SEARCH ANY POKÉMON</div>
+    <div class="poke-search-row">
+      <input type="text" class="poke-search-input" id="poke-search-input" placeholder="name or #number  (e.g. gengar, 94)">
+      <button class="poke-search-btn" onclick="searchPokemon()">GO</button>
+    </div>
+    <div class="poke-search-result" id="poke-search-result"></div>
+  </div>
+</div>
+</div>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-sig">BA6Y — FAST. AGGRESSIVE. NO CHILL.</div>
+  <div class="social-links">
+    <a href="https://www.twitch.tv/ba6y" target="_blank" class="soc-btn soc-twitch">TWITCH</a>
+    <a href="https://steamcommunity.com/id/bornsix/" target="_blank" class="soc-btn soc-steam">STEAM</a>
+    <a href="https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1=ba6y" target="_blank" class="soc-btn soc-rs">OSRS</a>
+    <a href="https://econclass.github.io/PokeTeam/#/" target="_blank" class="soc-btn soc-poke">POKÉTEAM</a>
+  </div>
+</footer>
+
+<script>
+/* ══════════════════════════════
+   HEX BACKGROUND ENGINE
+══════════════════════════════ */
+(function(){
+  const canvas = document.getElementById('hex-canvas');
+  const ctx    = canvas.getContext('2d');
+  const cur    = document.getElementById('hex-cursor');
+
+  /* ── palette: base black + 4 cyberpunk layers ── */
+  const FILLS   = ['#06060e','#b8002a','#009e96','#7200aa','#aaaa00'];
+  const EDGES   = ['#00fff7','#ff2255','#00fff7','#cc44ff','#ffee44']; /* edge glow color per layer */
+  const GLOWS   = [null,     '#ff003c','#00fff7','#b200ff','#ffea00'];
+  const MAX_L   = FILLS.length - 1;
+
+  /* ── hex geometry ── */
+  const S      = 28;                        /* hex circumradius */
+  const COS30  = Math.cos(Math.PI / 6);
+  const HH     = S * COS30 * 2;            /* row height */
+  const CW     = S * 1.5;                  /* col width  */
+
+  let W, H, grid = [];
+  let mouse = { x:-9999, y:-9999 };
+
+  /* reaction zone = exactly 1 hex wide → radius ≈ S (circumradius) */
+  const REACT_R  = S + 2;
+  const FLIP_SPD = 0.055;
+  const COOL_MS  = 700;
+
+  /* ── build grid ── */
+  function build(){
+    grid = [];
+    const cols = Math.ceil(W / CW)  + 3;
+    const rows = Math.ceil(H / HH)  + 3;
+    for(let c = -1; c < cols; c++){
+      for(let r = -1; r < rows; r++){
+        const cx = c * CW + S;
+        const cy = r * HH + (c % 2 === 0 ? 0 : HH * 0.5) + S * COS30;
+        grid.push({ cx, cy, layer:0, flip:0, phase:0, lastFlip:0, dir:{x:1,y:0} });
+      }
+    }
+  }
+
+  function resize(){
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+    build();
+  }
+
+  /* ── hex vertex list ── */
+  function verts(cx, cy, r){
+    const v = [];
+    for(let i = 0; i < 6; i++){
+      const a = Math.PI / 3 * i - Math.PI / 6;
+      v.push([cx + r * Math.cos(a), cy + r * Math.sin(a)]);
+    }
+    return v;
+  }
+
+  function trace(v){
+    ctx.beginPath();
+    v.forEach(([x,y],i) => i ? ctx.lineTo(x,y) : ctx.moveTo(x,y));
+    ctx.closePath();
+  }
+
+  /* ── draw idle hex ── */
+  function drawIdle(h){
+    const v = verts(h.cx, h.cy, S - 1);
+    trace(v);
+    ctx.fillStyle = FILLS[h.layer];
+    ctx.fill();
+
+    /* subtle inner glow ring on colored layers */
+    if(h.layer > 0){
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.shadowColor = GLOWS[h.layer];
+      ctx.shadowBlur  = 8;
+      ctx.strokeStyle = GLOWS[h.layer];
+      ctx.lineWidth   = 1;
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.strokeStyle = 'rgba(0,255,247,0.07)';
+      ctx.lineWidth   = 0.6;
+      ctx.stroke();
+    }
+  }
+
+  /* ── draw flipping hex (3-D card fold) ── */
+  function drawFlip(h){
+    const { cx, cy, layer, flip, phase, dir } = h;
+
+    /* t: 0→1 during fold, 0→1 during unfold */
+    const t       = phase === 1 ? flip : (1 - flip);
+    const scale   = Math.cos(t * Math.PI);   /* 1 → -1 → 1  (negative = back face) */
+    const halfway = t > 0.5;
+
+    /* which color to paint */
+    const nextLayer   = layer >= MAX_L ? 0 : layer + 1;
+    const showLayer   = halfway ? nextLayer : layer;
+    const fill        = FILLS[showLayer];
+    const glow        = GLOWS[showLayer];
+    const edgeColor   = EDGES[showLayer];
+
+    /* fold axis = direction cursor came from */
+    const ang = Math.atan2(dir.y, dir.x);
+
+    /* squish vertices along fold axis */
+    const raw = verts(0, 0, S - 1);
+    const prj = raw.map(([px, py]) => {
+      const along =  px * Math.cos(ang) + py * Math.sin(ang);
+      const perp  = -px * Math.sin(ang) + py * Math.cos(ang);
+      const sa    = along * scale;
+      return [
+        sa * Math.cos(ang) - perp * Math.sin(ang) + cx,
+        sa * Math.sin(ang) + perp * Math.cos(ang) + cy
+      ];
+    });
+
+    trace(prj);
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    /* ── 3-D shading ── */
+    const absS = Math.abs(scale);
+    ctx.save();
+    if(scale < 0){
+      /* back face: darken */
+      ctx.globalAlpha = 0.38;
+      ctx.fillStyle   = '#000';
+    } else {
+      /* front: bright sheen near edge-on */
+      ctx.globalAlpha = (1 - absS) * 0.6;
+      ctx.fillStyle   = '#fff';
+    }
+    ctx.fill();
+    ctx.restore();
+
+    /* ── edge stroke + glow ── */
+    ctx.save();
+    ctx.shadowColor = glow || edgeColor;
+    ctx.shadowBlur  = 14 + (1 - absS) * 24;
+    ctx.globalAlpha = 0.75 + (1 - absS) * 0.25;
+    ctx.strokeStyle = glow || edgeColor;
+    ctx.lineWidth   = 1.2 + (1 - absS) * 1.2;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /* ── update ── */
+  function update(ts){
+    grid.forEach(h => {
+      const dx = h.cx - mouse.x;
+      const dy = h.cy - mouse.y;
+      const d  = Math.sqrt(dx*dx + dy*dy);
+
+      if(d < REACT_R && h.phase === 0 && (ts - h.lastFlip) > COOL_MS){
+        h.phase = 1; h.flip = 0;
+        const len = d || 1;
+        h.dir = { x: -dx/len, y: -dy/len };
+      }
+
+      if(h.phase === 1){
+        h.flip = Math.min(1, h.flip + FLIP_SPD);
+        if(h.flip >= 1){
+          h.phase = 2;
+          h.layer = h.layer >= MAX_L ? 0 : h.layer + 1;
+        }
+      } else if(h.phase === 2){
+        h.flip = Math.max(0, h.flip - FLIP_SPD);
+        if(h.flip <= 0){ h.flip = 0; h.phase = 0; h.lastFlip = ts; }
+      }
+    });
+  }
+
+  /* ── render ── */
+  function draw(){
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, W, H);
+    grid.forEach(h => { if(h.phase === 0) drawIdle(h); });
+    grid.forEach(h => { if(h.phase !== 0) drawFlip(h); });
+  }
+
+  function loop(ts){ update(ts); draw(); requestAnimationFrame(loop); }
+
+  window.addEventListener('mousemove', e => {
+    mouse.x = e.clientX; mouse.y = e.clientY;
+    cur.style.left = e.clientX + 'px';
+    cur.style.top  = e.clientY + 'px';
+  });
+  window.addEventListener('mouseleave', () => { mouse.x = -9999; mouse.y = -9999; });
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(loop);
+})();
+
+/* ══════════════════════════════
+   TABS
+══════════════════════════════ */
+function showTab(id, el){
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-tabs a').forEach(a => a.classList.remove('active'));
+  document.getElementById('section-' + id).classList.add('active');
+  if(el) el.classList.add('active');
+  if(id === 'pokemon' && !pokeLoaded) loadPokeTeam();
+}
+
+/* TWITCH */
+(function(){
+  const ch = 'ba6y';
+  const parent = window.location.hostname || 'localhost';
+  document.getElementById('twitch-iframe').src =
+    `https://player.twitch.tv/?channel=${ch}&parent=${parent}&autoplay=false`;
+  document.getElementById('twitch-lbl').textContent = '● LIVE WHEN ONLINE';
+})();
+
+/* FASHIONSCAPE */
+(function(){
+  const f = document.getElementById('fashion-iframe');
+  const fb = document.getElementById('fashion-fallback');
+  f.addEventListener('error', () => { f.style.display='none'; fb.style.display='block'; });
+  setTimeout(() => {
+    try{ if(!f.contentDocument||!f.contentDocument.body||f.contentDocument.body.innerHTML===''){f.style.display='none';fb.style.display='block';} }
+    catch(e){ f.style.display='none'; fb.style.display='block'; }
+  }, 9000);
+})();
+
+function reloadFashion(){
+  const f = document.getElementById('fashion-iframe');
+  f.src = f.src;
+}
+let fashionExpanded = false;
+function toggleFashionSize(){
+  const f   = document.getElementById('fashion-iframe');
+  const btn = document.getElementById('expand-btn');
+  fashionExpanded = !fashionExpanded;
+  f.style.height = fashionExpanded ? '85vh' : '600px';
+  btn.textContent = fashionExpanded ? '⤡ COLLAPSE' : '⤢ EXPAND';
+}
+
+/* OSRS */
+const SKILLS=[
+  {n:'Total',i:'⚔'},{n:'Atk',i:'⚔'},{n:'Str',i:'💪'},{n:'Def',i:'🛡'},{n:'HP',i:'❤'},
+  {n:'Rng',i:'🏹'},{n:'Pry',i:'✨'},{n:'Mge',i:'🔮'},{n:'Cook',i:'🍖'},{n:'WC',i:'🪓'},
+  {n:'Flt',i:'🪃'},{n:'Fish',i:'🎣'},{n:'FM',i:'🔥'},{n:'Cft',i:'🔨'},{n:'Smt',i:'⚒'},
+  {n:'Min',i:'⛏'},{n:'Herb',i:'🌿'},{n:'Agi',i:'🏃'},{n:'Thv',i:'🗡'},{n:'Slay',i:'💀'},
+  {n:'Farm',i:'🌾'},{n:'RC',i:'🔵'},{n:'Hunt',i:'🦅'},{n:'Con',i:'🏗'},
+];
+async function fetchOSRS(){
+  const D='https://secure.runescape.com/m=hiscore_oldschool/index_lite.ws?player=ba6y';
+  const P='https://corsproxy.io/?url='+encodeURIComponent(D);
+  let txt=null;
+  for(const u of[D,P]){try{const r=await fetch(u);if(r.ok){txt=await r.text();break;}}catch(e){}}
+  if(!txt){
+    document.getElementById('osrs-loading').innerHTML='► STATS UNAVAILABLE<br><a href="https://secure.runescape.com/m=hiscore_oldschool/hiscorepersonal?user1=ba6y" target="_blank" style="color:var(--rs-orange);text-decoration:none;font-size:8px;">VIEW ON RUNESCAPE SITE →</a>';
+    document.getElementById('combat-lv').textContent='Combat Lv: —';
+    ['nav-cb','nav-total'].forEach(id=>document.getElementById(id).textContent='?');
+    return;
+  }
+  const rows=txt.trim().split('\n').map(l=>{const[rank,level,xp]=l.split(',');return{rank:+rank||0,level:+level||0,xp:+xp||0};});
+  const ov=rows[0];
+  const tot=rows.slice(1,24).reduce((a,s)=>a+(s.level>0?s.level:0),0);
+  document.getElementById('total-lv').textContent=`Total: ${tot.toLocaleString()}`;
+  document.getElementById('osrs-rank').textContent=`Rank: #${ov.rank.toLocaleString()}`;
+  document.getElementById('osrs-xp').textContent=`XP: ${ov.xp.toLocaleString()}`;
+  document.getElementById('nav-total').textContent=tot.toLocaleString();
+  const [atk,str,def,hp,rng,,mge]=[1,2,3,4,5,6,7].map(i=>rows[i]?.level||1);
+  const cb=Math.floor((def+hp)*.25+Math.max(atk+str,mge*2,rng*1.5)*.325);
+  document.getElementById('combat-lv').textContent=`Combat Lv: ${cb}`;
+  document.getElementById('nav-cb').textContent=cb;
+  document.getElementById('xp-bar').style.display='block';
+  setTimeout(()=>document.getElementById('xp-fill').style.width=Math.min(ov.xp/500000000*100,100)+'%',300);
+  document.getElementById('osrs-loading').style.display='none';
+  const g=document.getElementById('stat-grid');g.style.display='grid';
+  SKILLS.forEach((sk,i)=>{
+    const d=rows[i]||{level:1};const lv=d.level>0?d.level:'?';
+    const c=document.createElement('div');c.className='stat-cell';c.title=`${sk.n}: ${lv}`;
+    c.innerHTML=`<span class="stat-icon">${sk.i}</span><span class="stat-level">${lv}</span><span class="stat-name">${sk.n}</span>`;
+    g.appendChild(c);
+  });
+}
+fetchOSRS();
+
+/* POKEMON */
+const TC={normal:'#a8a878',fire:'#f08030',water:'#6890f0',grass:'#78c850',electric:'#f8d030',ice:'#98d8d8',fighting:'#c03028',poison:'#a040a0',ground:'#e0c068',flying:'#a890f0',psychic:'#f85888',bug:'#a8b820',rock:'#b8a038',ghost:'#705898',dragon:'#7038f8',dark:'#705848',steel:'#b8b8d0',fairy:'#ee99ac'};
+const SC={hp:'#ff5959',attack:'#f5ac78',defense:'#fae078','special-attack':'#9db7f5','special-defense':'#a7db8d',speed:'#fa92b2'};
+const SS={hp:'HP',attack:'ATK',defense:'DEF','special-attack':'SpA','special-defense':'SpD',speed:'SPD'};
+const TEAM=[282,445,448,257,248,373];
+let pokeLoaded=false;
+
+async function loadPokeTeam(){
+  pokeLoaded=true;
+  const g=document.getElementById('poke-team-grid');
+  TEAM.forEach((_,i)=>{const c=document.createElement('div');c.className='poke-card';c.id=`pk${i}`;c.innerHTML=`<div class="poke-card-inner"><div class="poke-sprite-wrap"><div class="poke-load-box"></div></div><div class="poke-name" style="color:rgba(255,255,255,.1);">loading…</div></div>`;g.appendChild(c);});
+  await Promise.all(TEAM.map((id,i)=>loadPoke(id,i)));
+}
+async function loadPoke(id,idx){
+  try{const r=await fetch(`https://pokeapi.co/api/v2/pokemon/${id}`);if(!r.ok)throw 0;renderPoke(await r.json(),idx);}
+  catch(e){const el=document.getElementById(`pk${idx}`);if(el)el.innerHTML=`<div class="poke-card-inner" style="font-size:8px;color:rgba(200,80,80,.5);padding:20px;text-align:center;">ERROR</div>`;}
+}
+function tbadge(t){const c=TC[t]||'#888';return `<span class="type-badge" style="background:${c}22;border:1px solid ${c}55;color:${c};">${t}</span>`;}
+function renderPoke(d,idx){
+  const el=document.getElementById(`pk${idx}`);if(!el)return;
+  const spr=d.sprites?.other?.['official-artwork']?.front_default||d.sprites?.front_default||'';
+  const types=d.types.map(t=>t.type.name);
+  const num=String(d.id).padStart(3,'0');
+  const acc=TC[types[0]]||'#6c63ff';
+  const bars=d.stats.slice(0,6).map(s=>{const n=s.stat.name,v=s.base_stat,p=Math.min(v/255*100,100),c=SC[n]||'#aaa';return `<div class="poke-stat-row"><span class="poke-stat-name">${SS[n]||n.slice(0,3).toUpperCase()}</span><div class="poke-stat-bar"><div class="poke-stat-fill" style="width:0%;background:${c};" data-p="${p}"></div></div><span class="poke-stat-val">${v}</span></div>`;}).join('');
+  el.style.boxShadow=`inset 0 0 0 1px ${acc}18`;
+  el.innerHTML=`<div class="poke-card-num">#${num}</div><div class="poke-card-inner"><div class="poke-sprite-wrap">${spr?`<img class="poke-sprite" src="${spr}" alt="${d.name}" loading="lazy">`:'<div class="poke-load-box" style="opacity:.1"></div>'}</div><div class="poke-name">${d.name}</div><div class="poke-types">${types.map(tbadge).join('')}</div><div class="poke-stats">${bars}</div></div>`;
+  requestAnimationFrame(()=>setTimeout(()=>el.querySelectorAll('.poke-stat-fill').forEach(f=>f.style.width=f.dataset.p+'%'),150+idx*55));
+}
+async function searchPokemon(){
+  const v=document.getElementById('poke-search-input').value.trim().toLowerCase();if(!v)return;
+  const res=document.getElementById('poke-search-result');
+  res.style.display='block';res.innerHTML=`<div style="font-size:9px;color:rgba(160,154,248,.35);padding:12px;">▶ SEARCHING…</div>`;
+  try{
+    const r=await fetch(`https://pokeapi.co/api/v2/pokemon/${v}`);if(!r.ok)throw 0;
+    const d=await r.json();
+    const spr=d.sprites?.other?.['official-artwork']?.front_default||d.sprites?.front_default||'';
+    const types=d.types.map(t=>t.type.name);
+    const bst=d.stats.slice(0,6).reduce((a,s)=>a+s.base_stat,0);
+    const rows=d.stats.slice(0,6).map(s=>{const n=s.stat.name,v=s.base_stat,p=Math.min(v/255*100,100),c=SC[n]||'#aaa';return `<div class="poke-single-stat-row"><span class="poke-single-stat-name">${SS[n]||n}</span><div class="poke-single-bar"><div class="poke-single-fill" style="width:${p}%;background:${c};"></div></div><span class="poke-single-val">${v}</span></div>`;}).join('');
+    res.innerHTML=`<div class="poke-single-card"><div style="text-align:center;flex-shrink:0;">${spr?`<img class="poke-single-sprite" src="${spr}" alt="${d.name}" loading="lazy">`:''}  <div class="poke-single-num">#${String(d.id).padStart(3,'0')}</div></div><div class="poke-single-right"><div class="poke-single-name">${d.name}</div><div style="margin-bottom:8px;">${types.map(tbadge).join('')}</div><div style="font-size:8px;color:rgba(160,154,248,.38);margin-bottom:8px;">BST: ${bst}</div><div class="poke-single-stats">${rows}</div></div></div>`;
+  }catch(e){res.innerHTML=`<div style="font-size:9px;color:rgba(200,80,80,.6);padding:12px;">► NOT FOUND — check spelling or try a dex number</div>`;}
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const i=document.getElementById('poke-search-input');
+  if(i)i.addEventListener('keydown',e=>{if(e.key==='Enter')searchPokemon();});
+});
+</script>
+</body>
+</html>
